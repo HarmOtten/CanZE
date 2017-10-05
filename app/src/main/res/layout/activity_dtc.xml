@@ -12,8 +12,42 @@
     android:weightSum="1"
     tools:context="lu.fisch.canze.activities.DtcActivity">
 
+    <TableLayout
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content">
+
+        <TableRow>
+            <Spinner
+                android:id="@+id/ecuList"
+                android:layout_weight="1"
+                />
+            <Button
+                style="?android:attr/button"
+                android:id="@+id/ecuQuery"
+                android:text="@string/button_QueryDTCs"
+                android:layout_weight="1"
+                />
+        </TableRow>
+        <TableRow>
+            <Button
+                style="?android:attr/button"
+                android:id="@+id/ecuClear"
+                android:text="@string/button_ClearDTCs"
+                android:layout_weight="1"
+                />
+
+            <Button
+                style="?android:attr/button"
+                android:id="@+id/ecuDiag"
+                android:text="@string/button_AllData"
+                android:layout_weight="1"
+                />
+        </TableRow>
+
+    </TableLayout>
+
     <ScrollView
-        android:id="@+id/SCROLLER_ID"
+        android:id="@+id/scrollerId"
         android:layout_width="fill_parent"
         android:layout_height="wrap_content"
         android:scrollbars="vertical"
@@ -22,9 +56,8 @@
         <TextView
             android:id="@+id/textResult"
             android:layout_width="fill_parent"
-            android:layout_height="fill_parent"
-            android:layout_weight="1.0"
-            android:text="@string/textNotImplementedYet"
+            android:layout_height="wrap_content"
+            android:text="@string/help_DTC"
             />
 
     </ScrollView>

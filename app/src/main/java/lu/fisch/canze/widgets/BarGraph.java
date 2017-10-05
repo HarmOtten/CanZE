@@ -1,9 +1,32 @@
+/*
+    CanZE
+    Take a closer look at your ZE car
+
+    Copyright (C) 2015 - The CanZE Team
+    http://canze.fisch.lu
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or any
+    later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
 package lu.fisch.canze.widgets;
 
 import lu.fisch.awt.Color;
 import lu.fisch.awt.Graphics;
+import lu.fisch.canze.activities.MainActivity;
 import lu.fisch.canze.actors.Field;
 import lu.fisch.canze.actors.Fields;
+import lu.fisch.canze.database.CanzeDataSource;
 import lu.fisch.canze.interfaces.DrawSurfaceInterface;
 
 /**
@@ -39,7 +62,7 @@ public class BarGraph extends Plotter {
             int toTicks = minorTicks;
             if(toTicks==0) toTicks=majorTicks;
             double accel = (double)height/((max-min)/(double)toTicks);
-            double ax,ay,bx=0,by=0;
+            double ax,ay,bx,by;
             int actual = min;
             int sum = 0;
             for(double i=height; i>=0; i-=accel)
@@ -94,20 +117,46 @@ public class BarGraph extends Plotter {
         if(values.size()>0)
         {
             double w = (double) barWidth/values.size();
-            double h = (double) getHeight()/(getMax()-getMin()+1);
+            double h = (double) getHeight()/(getMax()-getMin());
 
-            g.setColor(Color.RED);
             for(int i=0; i<values.size(); i++)
             {
                 double mx = i*w;
-                double my = getHeight()-(values.get(i)-getMin())*h;
+                double my;
                 int padding = 2;
+                // max value
+                /*
+                if(i<maxValues.size()) {
+                    my = getHeight() - (maxValues.get(i) - getMin()) * h;
+                    g.setColor(Color.GREEN_DARK);
+                    g.fillRect(
+                            (float) (getX() + getWidth() - barWidth + (int) mx) + padding,
+                            (float) (getY() + (int) my),
+                            (float) w - 2 * padding,
+                            (float) 2 //(getHeight()-my)
+                    );
+                }
+                // min value
+                if(i<minValues.size()) {
+                    my = getHeight() - (minValues.get(i) - getMin()) * h;
+                    g.setColor(Color.GREEN_DARK);
+                    g.fillRect(
+                            (float) (getX() + getWidth() - barWidth + (int) mx) + padding,
+                            (float) (getY() + (int) my),
+                            (float) w - 2 * padding,
+                            (float) 2 //(getHeight() - my)
+                    );
+                }
+                */
+                // value
+                my = getHeight()-(values.get(i)-getMin())*h;
+                g.setColor(Color.RED);
                 g.fillRect(
                         (float) (getX() + getWidth() - barWidth + (int) mx)+padding,
                         (float) (getY() + (int) my),
                         (float) w-2*padding,
-                        (float) (getHeight()-my)
-                        );
+                        (float) 2 //(getHeight()-my)
+                );
             }
         }
 
@@ -126,7 +175,7 @@ public class BarGraph extends Plotter {
     @Override
     public void onFieldUpdateEvent(Field field) {
         // only take data fofr valid cars
-        if(field.getCar()==0 || field.getCar()== Fields.getInstance().getCar()) {
+        if(field.getCar()==0 || field.getCar()== MainActivity.car) {
             String sid = field.getSID();
 
             //MainActivity.debug("Plotter: "+sid+" --> "+field.getValue());
@@ -134,11 +183,14 @@ public class BarGraph extends Plotter {
             int index = sids.indexOf(sid);
             if (index == -1) {
                 sids.add(sid);
-                addValue(field.getValue());
+                values.add(field.getValue());
+                //minValues.add(CanzeDataSource.getInstance().getMin(sid));
+                //maxValues.add(CanzeDataSource.getInstance().getMax(sid));
             } else setValue(index, field.getValue());
             // only repaint if the last field has been updated
             //if(index==sids.size()-1)
             super.onFieldUpdateEvent(field);
         }
     }
+
 }

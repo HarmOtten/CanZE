@@ -1,3 +1,25 @@
+/*
+    CanZE
+    Take a closer look at your ZE car
+
+    Copyright (C) 2015 - The CanZE Team
+    http://canze.fisch.lu
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or any
+    later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+
 /**
  * Helper class to manage the Bluetooth connection
  */
@@ -7,8 +29,11 @@ import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
 import android.os.Build;
+import android.util.Log;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.lang.reflect.Method;
 import java.security.InvalidParameterException;
 import java.util.UUID;
@@ -26,6 +51,9 @@ public class BluetoothManager {
      \ ------------------------------ */
 
     private static BluetoothManager bluetoothManager = null;
+
+    private InputStream inputStream     = null;
+    private OutputStream outputStream   = null;
 
     public static BluetoothManager getInstance()
     {
@@ -47,7 +75,12 @@ public class BluetoothManager {
 
     private BluetoothAdapter bluetoothAdapter = null;
     private BluetoothSocket bluetoothSocket = null;
-    private ConnectedBluetoothThread connectedBluetoothThread = null;
+
+    public boolean isDummyMode() {
+        return dummyMode;
+    }
+
+    private boolean dummyMode = false;
 
     private BluetoothEvent bluetoothEvent;
 
@@ -81,6 +114,9 @@ public class BluetoothManager {
     public int getHardwareState() {
         // Check for Bluetooth support and then check to make sure it is turned on
         // Emulator doesn't support Bluetooth and will return null
+
+        if (dummyMode) return STATE_BLUETOOTH_ACTIVE;
+
         if(bluetoothAdapter ==null)
         {
             return STATE_BLUETOOTH_NOT_AVAILABLE;
@@ -126,23 +162,27 @@ public class BluetoothManager {
         return  device.createRfcommSocketToServiceRecord(MY_UUID);
     }
 
-    public ConnectedBluetoothThread connect()
+    public void connect()
     {
+        if (dummyMode) return;
+
         if(connectBluetoothAddress==null) throw new InvalidParameterException("connect() has to be called at least once with parameters!");
-        return connect(connectBluetoothAddress, connectSecure, connectRetries);
+        connect(connectBluetoothAddress, connectSecure, connectRetries);
     }
 
-    public ConnectedBluetoothThread connect(final String bluetoothAddress, final boolean secure, final int retries) {
+    public void connect(final String bluetoothAddress, final boolean secure, final int retries) {
+
+        if (dummyMode) return;
+
         retry = true;
-        return privateConnect(bluetoothAddress, secure, retries);
+        privateConnect(bluetoothAddress, secure, retries);
     }
 
-    private ConnectedBluetoothThread privateConnect(final String bluetoothAddress, final boolean secure, final int retries)
+    private void privateConnect(final String bluetoothAddress, final boolean secure, final int retries)
     {
-        if(connectedBluetoothThread!=null && connectedBluetoothThread.isAlive())
-        {
-            debug("Thread is active and alive. Aborting re-connect!");
-            return connectedBluetoothThread;
+        if (!(retryThread == null || (retryThread != null && !retryThread.isAlive()))) {
+            debug("BT: aborting connect (another one is in progress ...)");
+            return;
         }
 
         if(retry) {
@@ -153,19 +193,15 @@ public class BluetoothManager {
 
             // only continue if we got an address
             if (bluetoothAddress != null && !bluetoothAddress.isEmpty() && getHardwareState() == STATE_BLUETOOTH_ACTIVE) {
-                // make sure the affected thread is no longer running
-                if (connectedBluetoothThread != null && connectedBluetoothThread.isAlive()) {
-                    debug("Stopping previous connected thread");
-                    connectedBluetoothThread.cleanStop();
-                }
 
                 // make sure there is no more active connection
-                if (bluetoothSocket != null && !bluetoothSocket.isConnected()) {
+                if (bluetoothSocket!=null && bluetoothSocket.isConnected()) {
                     try {
                         debug("Closing previous socket");
                         bluetoothSocket.close();
+                        bluetoothSocket=null;
                     } catch (Exception e) {
-                        // ignore
+                        e.printStackTrace();
                     }
                 }
 
@@ -192,16 +228,23 @@ public class BluetoothManager {
                     debug("Connect the socket");
                     bluetoothSocket.connect();
 
-                    debug("Create a new connected thread");
-                    ConnectedBluetoothThread connectedBluetoothThread = new ConnectedBluetoothThread(bluetoothSocket);
+                    debug("Connect the streams");
+                    // connect the streams
+                    try {
+                        inputStream  = bluetoothSocket.getInputStream();
+                        outputStream = bluetoothSocket.getOutputStream();
+                    }
+                    catch (IOException e) {
+                        inputStream  = null;
+                        outputStream = null;
+                    }
 
                     // execute attached event
                     if (bluetoothEvent != null)
-                        bluetoothEvent.onAfterConnect(bluetoothSocket, connectedBluetoothThread);
+                        bluetoothEvent.onAfterConnect(bluetoothSocket);
 
                     debug("Connected");
-
-                    return connectedBluetoothThread;
+                    return;
                 } catch (IOException e) {
                     //e.printStackTrace();
                 }
@@ -210,8 +253,16 @@ public class BluetoothManager {
             debug("Something went wrong");
             if (bluetoothAddress == null || bluetoothAddress.isEmpty())
                 debug("No device address given");
-            if (getHardwareState() == STATE_BLUETOOTH_NOT_ACTIVE)
+            else if (getHardwareState() == STATE_BLUETOOTH_NOT_ACTIVE)
                 debug("Bluetooth not active");
+
+            if(bluetoothSocket!=null)
+                try {
+                    debug("Closing socket again ...");
+                    bluetoothSocket.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
 
             debug(retries + " tries left");
             if (retries != RETRIES_NONE) {
@@ -225,7 +276,7 @@ public class BluetoothManager {
                         @Override
                         public void run() {
                             try {
-                                Thread.sleep(5 * 1000);
+                                Thread.sleep(2 * 1000);
                             } catch (Exception e) {
                             }
                             (new Thread(new Runnable() {
@@ -243,14 +294,16 @@ public class BluetoothManager {
                 }
             }
         }
-        return null;
     }
 
     public void disconnect()
     {
+
+        if (dummyMode) return;
+
         try {
             // execute attached event
-            if(bluetoothEvent!=null) bluetoothEvent.onBeforeDisconnect(bluetoothSocket,connectedBluetoothThread);
+            if(bluetoothEvent!=null) bluetoothEvent.onBeforeDisconnect(bluetoothSocket);
 
             retry=false;
 
@@ -278,10 +331,88 @@ public class BluetoothManager {
     }
 
     /* --------------------------------
+     * input / output
+     \ ------------------------------ */
+
+    // write a message to the output stream
+    public void write(String message) {
+
+        if (dummyMode) return;
+
+        if(bluetoothSocket.isConnected()) {
+            byte[] msgBuffer = message.getBytes();
+            try {
+                outputStream.write(msgBuffer);
+            } catch (IOException e) {
+                Log.d(MainActivity.TAG, "BT: Error sending > " + e.getMessage());
+                //Log.d(MainActivity.TAG, "BT: Error sending > restaring BT");
+
+                /*
+                (new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        disconnect();
+                        connect(connectBluetoothAddress, true, BluetoothManager.RETRIES_INFINITE);
+                    }
+                })).start();
+                */
+            }
+        }
+        else MainActivity.debug("Write failed! Socket is closed ... M = "+message);
+    }
+
+    public int read(byte[] buffer) throws IOException {
+
+        if (dummyMode) return 0;
+
+        if(bluetoothSocket.isConnected())
+            return inputStream.read(buffer);
+        else
+            return 0;
+    }
+
+    public int read() throws IOException {
+
+        if (dummyMode) return -1;
+
+        if(bluetoothSocket.isConnected())
+            return inputStream.read();
+        else
+            return -1;
+    }
+
+    public int available() throws IOException {
+
+        if (dummyMode) return 0;
+
+        if(bluetoothSocket.isConnected())
+            return inputStream.available();
+        else
+            return 0;
+    }
+
+    public boolean isConnected()
+    {
+
+        if (dummyMode) return true;
+
+        if(bluetoothSocket==null) return false;
+        return bluetoothSocket.isConnected();
+    }
+
+    /* --------------------------------
      * Events
      \ ------------------------------ */
 
     public void setBluetoothEvent(BluetoothEvent bluetoothEvent) {
+
+        if (dummyMode) return;
+
         this.bluetoothEvent = bluetoothEvent;
     }
+
+    public void setDummyMode (boolean dummyMode) {
+        this.dummyMode = dummyMode;
+    }
+
 }

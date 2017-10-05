@@ -1,10 +1,33 @@
+/*
+    CanZE
+    Take a closer look at your ZE car
+
+    Copyright (C) 2015 - The CanZE Team
+    http://canze.fisch.lu
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or any
+    later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
 package lu.fisch.awt;
 
 import android.graphics.Canvas;
+import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.Point;
 import android.graphics.RectF;
+import android.graphics.Shader;
 import android.text.style.TextAppearanceSpan;
 
 public class Graphics 
@@ -165,7 +188,7 @@ public class Graphics
 	public void fillPolygon(Polygon p)
 	{
 		paint.setColor(color.getAndroidColor());
-		paint.setStyle(Paint.Style.FILL);
+		paint.setStyle(Paint.Style.FILL_AND_STROKE);
 
 		Path path = new Path();
 		path.moveTo(p.get(p.size()-1).x,p.get(p.size()-1).y);
@@ -177,7 +200,45 @@ public class Graphics
 		canvas.drawPath(path, paint);
 	}
 
-    public void rotate(float degrees, float cx, float cy)
+	public void setGradient(int x1, int y1, int x2, int y2, int[] colors, float[] spacings)
+	{
+		LinearGradient lg = new LinearGradient(x1, y1, x2, y2,
+				colors,
+				spacings,
+				Shader.TileMode.REPEAT);
+		paint.setShader(lg);
+	}
+
+	public void clearGradient()
+	{
+		paint.setShader(null);
+	}
+
+	/*public void fillPolygon(Polygon p, int x1, int y1, int x2, int y2, int[] colors, float[] spacings)
+	{
+		paint.setColor(color.getAndroidColor());
+		paint.setStyle(Paint.Style.FILL_AND_STROKE);
+
+		LinearGradient lg = new LinearGradient(x1, y1, x2, y2,
+				colors,
+				spacings,
+				Shader.TileMode.REPEAT);
+		paint.setShader(lg);
+
+		Path path = new Path();
+		path.moveTo(p.get(p.size()-1).x,p.get(p.size()-1).y);
+		for(int i=0; i<p.size(); i++)
+		{
+			Point from = p.get(i);
+			path.lineTo(from.x,from.y);
+		}
+		canvas.drawPath(path, paint);
+
+        paint.setShader(null);
+	}*/
+
+
+	public void rotate(float degrees, float cx, float cy)
     {
         canvas.rotate(degrees,cx,cy);
     }
@@ -218,4 +279,7 @@ public class Graphics
 		return bounds.height();
 	}
 
+	public Paint getPaint() {
+		return paint;
+	}
 }
